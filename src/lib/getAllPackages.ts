@@ -43,11 +43,20 @@ const readCatalogDependencies = async (options: Options, pkgPath: string): Promi
   }
 
   // Read from package.json (for Bun and modern pnpm)
-  const packageData: PackageFile & {
+  let packageData: PackageFile & {
     catalog?: Index<VersionSpec>
     catalogs?: Index<Index<VersionSpec>>
     workspaces?: string[] | { packages: string[]; catalog?: Index<VersionSpec>; catalogs?: Index<Index<VersionSpec>> }
-  } = JSON.parse(await fs.readFile(pkgPath, 'utf-8'))
+  }
+
+  try {
+    packageData = JSON.parse(await fs.readFile(pkgPath, 'utf-8'))
+  } catch (error: any) {
+    if (error.code === 'ENOENT') {
+      return null
+    }
+    throw error
+  }
 
   Object.assign(catalogDependencies, packageData.catalog, ...Object.values(packageData.catalogs ?? {}))
 
