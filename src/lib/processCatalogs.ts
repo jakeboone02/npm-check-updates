@@ -1,6 +1,6 @@
 import findUp from 'find-up'
 import fs from 'fs/promises'
-import yaml from 'js-yaml'
+import { stringify } from 'yaml'
 import { Index } from '../types/IndexType'
 import { Options } from '../types/Options'
 import { PackageInfo } from '../types/PackageInfo'
@@ -91,7 +91,7 @@ export async function processCatalogs(
       try {
         const updatedContent = await upgradeCatalogData(catalogFilePath, referencedCatalogDeps, upgradedCatalogDeps)
         if (catalogFilePath.endsWith('.yaml') || catalogFilePath.endsWith('.yml')) {
-          await fs.writeFile(catalogFilePath, yaml.dump(JSON.parse(updatedContent)), 'utf-8')
+          await fs.writeFile(catalogFilePath, stringify(JSON.parse(updatedContent)), 'utf-8')
         } else {
           await fs.writeFile(catalogFilePath, updatedContent, 'utf-8')
         }

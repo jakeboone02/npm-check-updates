@@ -1,8 +1,8 @@
 import glob, { type Options as GlobOptions } from 'fast-glob'
 import fs from 'fs/promises'
-import yaml from 'js-yaml'
 import path from 'path'
 import untildify from 'untildify'
+import { parse } from 'yaml'
 import { Index } from '../types/IndexType'
 import { Options } from '../types/Options'
 import { PackageFile } from '../types/PackageFile'
@@ -27,7 +27,7 @@ const readPnpmWorkspaces = async (pkgPath: string): Promise<PnpmWorkspaces | nul
   } catch {
     return null
   }
-  return yaml.load(pnpmWorkspaceFile) as PnpmWorkspaces
+  return parse(pnpmWorkspaceFile) as PnpmWorkspaces
 }
 
 /** Gets catalog dependencies from both pnpm-workspace.yaml and package.json files. */

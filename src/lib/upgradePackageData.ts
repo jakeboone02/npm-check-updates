@@ -1,6 +1,6 @@
 import fs from 'fs/promises'
-import yaml from 'js-yaml'
 import path from 'path'
+import { parse } from 'yaml'
 import { Index } from '../types/IndexType'
 import { Options } from '../types/Options'
 import { PackageFile } from '../types/PackageFile'
@@ -67,7 +67,7 @@ async function upgradePackageData(
         // This is synthetic catalog data, we need to generate the proper catalog structure
         // Read the original pnpm-workspace.yaml to get the catalog structure
         const yamlContent = await fs.readFile(pkgFile, 'utf-8')
-        const yamlData = yaml.load(yamlContent) as {
+        const yamlData = parse(yamlContent) as {
           packages?: string[]
           catalog?: Index<string>
           catalogs?: Index<Index<string>>

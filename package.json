@@ -66,7 +66,6 @@
     "@types/cli-table": "^0.3.4",
     "@types/hosted-git-info": "^3.0.5",
     "@types/ini": "^4.1.1",
-    "@types/js-yaml": "^4.0.9",
     "@types/jsonlines": "^0.1.5",
     "@types/lodash": "^4.17.16",
     "@types/mocha": "^10.0.10",
@@ -105,7 +104,6 @@
     "fp-and-or": "^1.0.2",
     "hosted-git-info": "^8.0.2",
     "ini": "^5.0.0",
-    "js-yaml": "^4.1.0",
     "jsonc-parser": "^3.3.1",
     "jsonlines": "^0.1.1",
     "lockfile-lint": "^4.14.0",
@@ -141,6 +139,7 @@
     "vite-bundle-analyzer": "^0.18.1",
     "vite-node": "^3.1.1",
     "vite-plugin-dts": "^4.5.3",
+    "yaml": "^2.8.1",
     "yarn": "^1.22.22"
   },
   "files": [
