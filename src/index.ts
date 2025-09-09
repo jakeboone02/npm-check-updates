@@ -14,6 +14,7 @@ import getNcuRc from './lib/getNcuRc'
 import initOptions from './lib/initOptions'
 import { print, printJson } from './lib/logging'
 import mergeOptions from './lib/mergeOptions'
+import { processCatalogs } from './lib/processCatalogs'
 import programError from './lib/programError'
 import runGlobal from './lib/runGlobal'
 import runLocal from './lib/runLocal'
@@ -194,7 +195,11 @@ const install = async (
 
 /** Runs the dependency upgrades. Loads the ncurc, finds the package file, and handles --deep. */
 async function runUpgrades(options: Options, timeout?: NodeJS.Timeout): Promise<Index<string> | PackageFile | void> {
-  const [selectedPackageInfos, workspacePackages]: [PackageInfo[], string[]] = await getAllPackages(options)
+  const [selectedPackageInfos, workspacePackages, catalogDependencies]: [
+    PackageInfo[],
+    string[],
+    Index<string> | null,
+  ] = await getAllPackages(options)
 
   const packageFilepaths: string[] = selectedPackageInfos.map((packageInfo: PackageInfo) => packageInfo.filepath)
 
@@ -277,6 +282,9 @@ async function runUpgrades(options: Options, timeout?: NodeJS.Timeout): Promise<
     analysis = await runLocal(options, pkgData, pkgFile)
   }
   clearTimeout(timeout)
+
+  // Process catalog dependencies if any
+  await processCatalogs(options, selectedPackageInfos, catalogDependencies)
 
   if (options.errorLevel === 2 && someUpgraded(packageFilepaths, analysis)) {
     programError(options, '\nDependencies not up-to-date')

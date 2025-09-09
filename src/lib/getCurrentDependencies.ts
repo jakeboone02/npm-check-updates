@@ -55,6 +55,47 @@ function getCurrentDependencies(pkgData: PackageFile = {}, options: Options = {}
   let filteredDependencies: Index<VersionSpec> = {}
   try {
     filteredDependencies = filterObject(
+      // catalog dependencies are handled separately
+      filterObject(allDependencies, (name, version) => !workspacePackageMap[name] && !version.startsWith('catalog:')),
+      filterAndReject(
+        options.filter || null,
+        options.reject || null,
+        options.filterVersion || null,
+        options.rejectVersion || null,
+      ),
+    )
+  } catch (err: any) {
+    programError(options, 'Invalid filter: ' + err.message || err)
+  }
+
+  return filteredDependencies
+}
+
+/**
+ * Get the catalog dependencies from the package file (dependencies that reference catalogs).
+ *
+ * @param [pkgData={}] Object with dependencies, devDependencies, peerDependencies, and/or optionalDependencies properties.
+ * @param [options={}]
+ * @returns `{packageName: catalogReference}` collection
+ */
+export function getCatalogDependencies(pkgData: PackageFile = {}, options: Options = {}): Index<string> {
+  const depSections = resolveDepSections(options.dep)
+
+  // get all dependencies from the selected sections that start with "catalog:"
+  const allDependencies = depSections.reduce((accum, depSection) => {
+    const sectionDependencies = (pkgData[depSection] as Index<string>) || {}
+    const catalogDependencies = filterObject(sectionDependencies, (name, version) => version.startsWith('catalog:'))
+    return {
+      ...accum,
+      ...catalogDependencies,
+    }
+  }, {} as Index<string>)
+
+  // filter & reject dependencies and versions
+  const workspacePackageMap = keyValueBy(options.workspacePackages || [])
+  let filteredDependencies: Index<string> = {}
+  try {
+    filteredDependencies = filterObject(
       filterObject(allDependencies, name => !workspacePackageMap[name]),
       filterAndReject(
         options.filter || null,

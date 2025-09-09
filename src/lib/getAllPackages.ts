@@ -188,9 +188,9 @@ async function getCatalogPackageInfo(options: Options, pkgPath: string): Promise
  * Gets all local packages, including workspaces (depending on -w, -ws, and -root).
  *
  * @param options the application options, used to determine which packages to return.
- * @returns PackageInfo[] an array of all package infos to be considered for updating
+ * @returns [PackageInfo[], string[], Index<VersionSpec> | null] an array of all package infos to be considered for updating, workspace names, and catalog dependencies if any
  */
-async function getAllPackages(options: Options): Promise<[PackageInfo[], string[]]> {
+async function getAllPackages(options: Options): Promise<[PackageInfo[], string[], Index<VersionSpec> | null]> {
   const defaultPackageFilename = options.packageFile || 'package.json'
   const cwd = options.cwd ? untildify(options.cwd) : './'
   const rootPackageFile = options.packageFile || (options.cwd ? path.join(cwd, 'package.json') : 'package.json')
@@ -218,8 +218,11 @@ async function getAllPackages(options: Options): Promise<[PackageInfo[], string[
     packageInfos = [...packageInfos, ...rootPackages]
   }
 
+  // Read catalog dependencies (if any)
+  const catalogDependencies = await readCatalogDependencies(options, rootPackageFile)
+
   if (!useWorkspaces) {
-    return [packageInfos, []]
+    return [packageInfos, [], catalogDependencies]
   }
 
   // Read catalog dependencies first so we can resolve references
@@ -253,7 +256,7 @@ async function getAllPackages(options: Options): Promise<[PackageInfo[], string[
     packageInfos = [...packageInfos, catalogPackageInfo]
   }
 
-  return [packageInfos, workspaceNames]
+  return [packageInfos, workspaceNames, catalogDependencies]
 }
 
 export default getAllPackages

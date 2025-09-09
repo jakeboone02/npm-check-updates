@@ -1,7 +1,9 @@
 import path from 'path'
 import getAllPackages from '../src/lib/getAllPackages'
+import { Index } from '../src/types/IndexType'
 import { Options } from '../src/types/Options'
 import { PackageInfo } from '../src/types/PackageInfo'
+import { VersionSpec } from '../src/types/VersionSpec'
 import chaiSetup from './helpers/chaiSetup'
 
 chaiSetup()
@@ -24,7 +26,8 @@ async function stripDir(dirPath: string, paths: [string[], string[]]): Promise<[
 async function getAllPackagesForTest(testPath: string, options: Options): Promise<[string[], string[]]> {
   const testCwd = path.join(__dirname, testPath).replace(/\\/g, '/')
   const optionsWithTestCwd: Options = { cwd: testCwd, ...options }
-  const [pkgInfos, workspacePackageNames]: [PackageInfo[], string[]] = await getAllPackages(optionsWithTestCwd)
+  const [pkgInfos, workspacePackageNames]: [PackageInfo[], string[], Index<VersionSpec> | null] =
+    await getAllPackages(optionsWithTestCwd)
   const packagePaths: string[] = pkgInfos.map((packageInfo: PackageInfo) => packageInfo.filepath)
   const [pkgs, workspacePackages]: [string[], string[]] = await stripDir(testCwd, [packagePaths, workspacePackageNames])
   return [pkgs, workspacePackages]
@@ -32,7 +35,8 @@ async function getAllPackagesForTest(testPath: string, options: Options): Promis
 
 describe('getAllPackages', () => {
   it('returns default package without cwd', async () => {
-    const [pkgInfos, workspacePackageNames]: [PackageInfo[], string[]] = await getAllPackages({})
+    const [pkgInfos, workspacePackageNames]: [PackageInfo[], string[], Index<VersionSpec> | null] =
+      await getAllPackages({})
     const packagePaths: string[] = pkgInfos.map((packageInfo: PackageInfo) => packageInfo.filepath)
     packagePaths.should.deep.equal(['package.json'])
     // allPackageInfos[0].name.should.deep.equal(undefined)
