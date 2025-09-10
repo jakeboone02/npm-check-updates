@@ -193,6 +193,8 @@ const install = async (
   }
 }
 
+const syntheticPackageNameRegExp = /^catalog-(.*)-dependencies$/
+
 /** Runs the dependency upgrades. Loads the ncurc, finds the package file, and handles --deep. */
 async function runUpgrades(options: Options, timeout?: NodeJS.Timeout): Promise<Index<string> | PackageFile | void> {
   const [selectedPackageInfos, workspacePackages, catalogDependencies]: [
@@ -234,17 +236,21 @@ async function runUpgrades(options: Options, timeout?: NodeJS.Timeout): Promise<
         let pkgData: string | null
         let pkgFile: string
 
-        if (
-          packageInfo.filepath.includes('#catalog:') ||
-          /^catalog-.*-dependencies$/.test(packageInfo.pkg.name ?? '')
-        ) {
+        const match = packageInfo.pkg.name?.match(syntheticPackageNameRegExp)
+
+        if (match) {
           // Virtual catalog file or catalog package - use PackageInfo data
           pkgData = packageInfo.pkgFile
           pkgFile = packageInfo.filepath
 
           // Print the same message as findPackage for consistency
-          const catalogName = /#(catalog:.*)/.exec(packageInfo.filepath)?.[1] ?? ''
-          print(pkgOptions, `${pkgOptions.upgrade ? 'Upgrading' : 'Checking'} ${catalogName} dependencies`)
+          const fileName = path.basename(packageInfo.filepath.replace(/#catalog:.*$/, ''))
+          const catalogName = match[1]
+
+          print(
+            pkgOptions,
+            `${pkgOptions.upgrade ? 'Upgrading' : 'Checking'} catalog:${catalogName} in ${fileName}`,
+          )
         } else {
           // Regular file - read from disk
           const result = await findPackage(pkgOptions)
