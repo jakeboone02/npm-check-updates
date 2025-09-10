@@ -105,14 +105,19 @@ export async function processCatalogs(
       try {
         // Read the current file content once
         let fileContent = await fs.readFile(catalogFilePath, 'utf-8')
-        
+
         // Apply updates for each catalog individually
         for (const [catalogName, upgradedDeps] of Object.entries(upgradedCatalogDeps)) {
           const currentCatalogDeps = catalogDependencies[`catalog:${catalogName}`] || {}
           if (Object.keys(upgradedDeps).length > 0) {
             // Convert empty catalog name to 'default' for upgradeCatalogData
             const catalogNameForUpgrade = catalogName === '' ? 'default' : catalogName
-            fileContent = await upgradeCatalogData(catalogFilePath, catalogNameForUpgrade, currentCatalogDeps, upgradedDeps)
+            fileContent = await upgradeCatalogData(
+              catalogFilePath,
+              catalogNameForUpgrade,
+              currentCatalogDeps,
+              upgradedDeps,
+            )
             // Write the updated content back for the next catalog update
             await fs.writeFile(catalogFilePath, fileContent, 'utf-8')
           }

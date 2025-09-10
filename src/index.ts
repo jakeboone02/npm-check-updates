@@ -234,7 +234,10 @@ async function runUpgrades(options: Options, timeout?: NodeJS.Timeout): Promise<
         let pkgData: string | null
         let pkgFile: string
 
-        if (packageInfo.filepath.includes('#catalog:') || /^catalog-.*-dependencies$/.test(packageInfo.pkg.name ?? '')) {
+        if (
+          packageInfo.filepath.includes('#catalog:') ||
+          /^catalog-.*-dependencies$/.test(packageInfo.pkg.name ?? '')
+        ) {
           // Virtual catalog file or catalog package - use PackageInfo data
           pkgData = packageInfo.pkgFile
           pkgFile = packageInfo.filepath

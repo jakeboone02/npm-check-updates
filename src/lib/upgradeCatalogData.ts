@@ -68,8 +68,7 @@ async function upgradeJsonCatalogData(
       return content
     }
 
-    const keyPath =
-      catalogName === 'default' ? ['catalog', dep] : ['catalogs', catalogName, dep]
+    const keyPath = catalogName === 'default' ? ['catalog', dep] : ['catalogs', catalogName, dep]
 
     let endResult = content
 
@@ -79,8 +78,7 @@ async function upgradeJsonCatalogData(
     }
 
     if (
-      ((hasWorkspacesCatalog && catalogName === 'default') ||
-        (hasWorkspacesCatalogs && catalogName !== 'default')) &&
+      ((hasWorkspacesCatalog && catalogName === 'default') || (hasWorkspacesCatalogs && catalogName !== 'default')) &&
       findNodeAtLocation(fileRoot!, ['workspaces', ...keyPath])
     ) {
       const edits = modify(content, ['workspaces', ...keyPath], newVersion, modificationOptions)
