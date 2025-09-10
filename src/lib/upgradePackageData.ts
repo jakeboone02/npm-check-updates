@@ -39,28 +39,26 @@ async function upgradePackageData(
     const fileExtension = path.extname(pkgFile)
 
     // Handle synthetic catalog files (package.json#catalog format)
-    if (pkgFile.includes('#catalog')) {
+    if (pkgFile.includes('#catalog:')) {
       // This is a synthetic catalog file, we need to read and update the actual file
-      const actualFilePath = pkgFile.replace('#catalog', '')
+      const actualFilePath = pkgFile.replace(/#catalog:.*/, '')
       const actualFileExtension = path.extname(actualFilePath)
 
       if (actualFileExtension === '.json') {
         // Bun format: update package.json catalogs and return the updated content
-        return upgradeCatalogData(actualFilePath, current, upgraded)
+        const catalogName = pkgFile.match(/#catalog:(.*)/)![1]
+        return upgradeCatalogData(actualFilePath, catalogName, current, upgraded)
       }
     }
 
     // Handle pnpm-workspace.yaml catalog files
-    if (
-      fileName === 'pnpm-workspace.yaml' ||
-      (fileName.includes('catalog') && (fileExtension === '.yaml' || fileExtension === '.yml'))
-    ) {
+    if (fileName === 'pnpm-workspace.yaml') {
       // Check if we have synthetic catalog data (JSON with only dependencies and name/version)
       // In this case, we should generate the proper catalog structure
       const parsed = JSON.parse(pkgData)
       if (
         typeof parsed === 'object' &&
-        parsed.name === 'catalog-dependencies' &&
+        /^catalog-.*-dependencies$/.test(parsed.name) &&
         typeof parsed.dependencies === 'object' &&
         Object.keys(parsed).length <= 3
       ) {
@@ -75,28 +73,28 @@ async function upgradePackageData(
 
         // Update catalog dependencies with upgraded versions
         if (yamlData.catalogs) {
-          yamlData.catalogs = Object.entries(yamlData.catalogs as Record<string, Record<string, string>>).reduce(
+          yamlData.catalogs = Object.entries(yamlData.catalogs).reduce(
             (catalogs, [catalogName, catalog]) => ({
               ...catalogs,
               [catalogName]: {
                 ...catalog,
                 ...Object.entries(upgraded)
                   .filter(([dep]) => catalog[dep])
-                  .reduce((acc, [dep, version]) => ({ ...acc, [dep]: version }), {} as Record<string, string>),
+                  .reduce((acc, [dep, version]) => ({ ...acc, [dep]: version }), {}),
               },
             }),
-            {} as Record<string, Record<string, string>>,
+            {} as typeof yamlData.catalogs,
           )
         }
 
         // Also handle single catalog (if present)
         if (yamlData.catalog) {
-          const catalog = yamlData.catalog as Record<string, string>
+          const catalog = yamlData.catalog
           yamlData.catalog = {
             ...catalog,
             ...Object.entries(upgraded)
               .filter(([dep]) => catalog[dep])
-              .reduce((acc, [dep, version]) => ({ ...acc, [dep]: version }), {} as Record<string, string>),
+              .reduce((acc, [dep, version]) => ({ ...acc, [dep]: version }), {}),
           }
         }
 
@@ -108,7 +106,8 @@ async function upgradePackageData(
         return JSON.stringify(yamlData, null, 2)
       }
 
-      return upgradeCatalogData(pkgFile, current, upgraded)
+      const catalogName = parsed.name.replace(/^catalog-/, '').replace(/-dependencies$/, '')
+      return upgradeCatalogData(pkgFile, catalogName, current, upgraded)
     }
 
     // Handle package.json catalog files (check if content contains catalog/catalogs at root level or in workspaces)
@@ -121,7 +120,9 @@ async function upgradePackageData(
         (parsed.workspaces.catalog || parsed.workspaces.catalogs)
 
       if (hasTopLevelCatalogs || hasWorkspacesCatalogs) {
-        return upgradeCatalogData(pkgFile, current, upgraded)
+        // For package.json catalogs, assume 'default' catalog if not specified
+        const catalogName = 'default'
+        return upgradeCatalogData(pkgFile, catalogName, current, upgraded)
       }
     }
   }
@@ -131,7 +132,7 @@ async function upgradePackageData(
   const depSections = [...resolveDepSections(options.dep), 'overrides']
 
   // iterate through each dependency section
-  const sectionRegExp = new RegExp(`"(${depSections.join(`|`)})"s*:[^}]*`, 'g')
+  const sectionRegExp = new RegExp(`"(${depSections.join(`|`)})"\\s*:[^}]*`, 'g')
   let newPkgData = pkgData.replace(sectionRegExp, section => {
     // replace each upgraded dependency in the section
     return Object.entries(upgraded).reduce((updatedSection, [dep]) => {

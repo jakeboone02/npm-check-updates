@@ -30,35 +30,44 @@ export async function processCatalogs(
     const catalogDeps = getCatalogDependencies(packageInfo.pkg, options)
 
     Object.entries(catalogDeps).forEach(([pkgName, catalogRef]) => {
-      // catalogRef is like "catalog:mobile", extract the catalog name
+      // catalogRef is like "catalog:mobile"; extract the catalog name
       const catalogName = catalogRef.replace('catalog:', '')
-      if (!catalogReferences[pkgName]) {
-        catalogReferences[pkgName] = new Set()
+      if (!catalogReferences[catalogName]) {
+        catalogReferences[catalogName] = new Set()
       }
-      catalogReferences[pkgName].add(catalogName)
+      catalogReferences[catalogName].add(pkgName)
     })
   }
 
-  // Only check for upgrades for packages that are actually referenced by catalog dependencies
-  const referencedCatalogDeps: Index<VersionSpec> = {}
-  // Flatten catalog dependencies for processing
-  const flattenedCatalogDeps: Index<VersionSpec> = {}
-  Object.values(catalogDependencies).forEach(catalogDeps => {
-    Object.assign(flattenedCatalogDeps, catalogDeps)
-  })
-
-  Object.keys(catalogReferences).forEach(pkgName => {
-    if (flattenedCatalogDeps[pkgName]) {
-      referencedCatalogDeps[pkgName] = flattenedCatalogDeps[pkgName]
-    }
-  })
-
-  if (Object.keys(referencedCatalogDeps).length === 0) {
+  if (Object.keys(catalogReferences).length === 0) {
     return
   }
 
   // Check for upgrades for catalog dependencies
-  const [upgradedCatalogDeps] = await upgradePackageDefinitions(referencedCatalogDeps, options)
+  const upgradedCatalogDeps: Index<Index<VersionSpec>> = Object.assign(
+    {},
+    ...(await Promise.all(
+      Object.entries(catalogReferences).map(async ([catalogName, pkgNames]) => {
+        const catalogDeps = catalogDependencies[`catalog:${catalogName}`]
+        if (!catalogDeps) {
+          return {}
+        }
+        const referencedCatalogDeps: Index<VersionSpec> = {}
+        pkgNames.forEach(pkgName => {
+          if (catalogDeps[pkgName]) {
+            referencedCatalogDeps[pkgName] = catalogDeps[pkgName]
+          }
+        })
+        const [upgradedCatalogDeps] = await upgradePackageDefinitions(referencedCatalogDeps, options)
+
+        if (Object.keys(upgradedCatalogDeps).length === 0) {
+          return {}
+        }
+
+        return { [catalogName]: upgradedCatalogDeps }
+      }),
+    )),
+  )
 
   // If there are upgrades to apply
   if (Object.keys(upgradedCatalogDeps).length > 0) {
@@ -94,8 +103,20 @@ export async function processCatalogs(
     // Update the catalog file if found
     if (catalogFilePath && options.upgrade) {
       try {
-        const updatedContent = await upgradeCatalogData(catalogFilePath, referencedCatalogDeps, upgradedCatalogDeps)
-        await fs.writeFile(catalogFilePath, updatedContent, 'utf-8')
+        // Read the current file content once
+        let fileContent = await fs.readFile(catalogFilePath, 'utf-8')
+        
+        // Apply updates for each catalog individually
+        for (const [catalogName, upgradedDeps] of Object.entries(upgradedCatalogDeps)) {
+          const currentCatalogDeps = catalogDependencies[`catalog:${catalogName}`] || {}
+          if (Object.keys(upgradedDeps).length > 0) {
+            // Convert empty catalog name to 'default' for upgradeCatalogData
+            const catalogNameForUpgrade = catalogName === '' ? 'default' : catalogName
+            fileContent = await upgradeCatalogData(catalogFilePath, catalogNameForUpgrade, currentCatalogDeps, upgradedDeps)
+            // Write the updated content back for the next catalog update
+            await fs.writeFile(catalogFilePath, fileContent, 'utf-8')
+          }
+        }
       } catch (error) {
         console.error(`Error updating catalog file ${catalogFilePath}:`, error)
       }

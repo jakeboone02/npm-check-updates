@@ -1,6 +1,6 @@
 import { PackageFile } from './PackageFile'
 
-/** Describes package data plus it's filepath */
+/** Describes package data plus its filepath */
 export interface PackageInfo {
   name?: string
   pkg: PackageFile

@@ -229,40 +229,34 @@ async function runUpgrades(options: Options, timeout?: NodeJS.Timeout): Promise<
           packageFile: packageInfo.filepath,
           workspacePackages,
         }
-        // For virtual catalog files (like package.json#catalog), use the PackageInfo data directly
+        // For virtual catalog files (like package.json#catalog:), use the PackageInfo data directly
         // since the virtual file doesn't exist on disk
         let pkgData: string | null
         let pkgFile: string
-        let indexKey: string
 
-        if (packageInfo.filepath.includes('#') || packageInfo.name === 'catalogs') {
+        if (packageInfo.filepath.includes('#catalog:') || /^catalog-.*-dependencies$/.test(packageInfo.pkg.name ?? '')) {
           // Virtual catalog file or catalog package - use PackageInfo data
           pkgData = packageInfo.pkgFile
           pkgFile = packageInfo.filepath
-          // For synthetic catalog files, use the actual underlying file path as the index key
-          indexKey = packageInfo.filepath.includes('#catalog')
-            ? packageInfo.filepath.replace('#catalog', '')
-            : packageInfo.filepath
 
           // Print the same message as findPackage for consistency
-          const relPathToPackage = path.resolve(indexKey)
-          print(pkgOptions, `${pkgOptions.upgrade ? 'Upgrading' : 'Checking'} ${relPathToPackage} catalog dependencies`)
+          const catalogName = /#(catalog:.*)/.exec(packageInfo.filepath)?.[1] ?? ''
+          print(pkgOptions, `${pkgOptions.upgrade ? 'Upgrading' : 'Checking'} ${catalogName} dependencies`)
         } else {
           // Regular file - read from disk
           const result = await findPackage(pkgOptions)
           pkgData = result.pkgData
           pkgFile = result.pkgFile || packageInfo.filepath
-          indexKey = pkgFile
         }
         return {
           ...packages,
           // index by relative path if cwd was specified
           [pkgOptions.cwd
             ? path
-                .relative(path.resolve(pkgOptions.cwd), indexKey)
+                .relative(path.resolve(pkgOptions.cwd), pkgFile)
                 // convert Windows path to *nix path for consistency
                 .replace(/\\/g, '/')
-            : indexKey]: await runLocal(pkgOptions, pkgData, pkgFile),
+            : pkgFile]: await runLocal(pkgOptions, pkgData, pkgFile),
         }
       },
       Promise.resolve({} as Index<PackageFile> | PackageFile),
@@ -350,7 +344,7 @@ export async function run(
         reject(error)
         try {
           programError(options, error)
-        } catch (e) {
+        } catch {
           /* noop */
         }
       }, timeoutMs)
