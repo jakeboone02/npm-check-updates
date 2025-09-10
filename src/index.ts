@@ -247,10 +247,7 @@ async function runUpgrades(options: Options, timeout?: NodeJS.Timeout): Promise<
           const fileName = path.basename(packageInfo.filepath.replace(/#catalog:.*$/, ''))
           const catalogName = match[1]
 
-          print(
-            pkgOptions,
-            `${pkgOptions.upgrade ? 'Upgrading' : 'Checking'} catalog:${catalogName} in ${fileName}`,
-          )
+          print(pkgOptions, `${pkgOptions.upgrade ? 'Upgrading' : 'Checking'} catalog:${catalogName} in ${fileName}`)
         } else {
           // Regular file - read from disk
           const result = await findPackage(pkgOptions)
