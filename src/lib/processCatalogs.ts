@@ -1,6 +1,5 @@
 import findUp from 'find-up'
 import fs from 'fs/promises'
-import { stringify } from 'yaml'
 import { Index } from '../types/IndexType'
 import { Options } from '../types/Options'
 import { PackageInfo } from '../types/PackageInfo'
@@ -19,7 +18,7 @@ import upgradePackageDefinitions from './upgradePackageDefinitions'
 export async function processCatalogs(
   options: Options,
   packageInfos: PackageInfo[],
-  catalogDependencies: Index<VersionSpec> | null,
+  catalogDependencies: Index<Index<VersionSpec>> | null,
 ): Promise<void> {
   if (!catalogDependencies || Object.keys(catalogDependencies).length === 0) {
     return
@@ -42,9 +41,15 @@ export async function processCatalogs(
 
   // Only check for upgrades for packages that are actually referenced by catalog dependencies
   const referencedCatalogDeps: Index<VersionSpec> = {}
+  // Flatten catalog dependencies for processing
+  const flattenedCatalogDeps: Index<VersionSpec> = {}
+  Object.values(catalogDependencies).forEach(catalogDeps => {
+    Object.assign(flattenedCatalogDeps, catalogDeps)
+  })
+
   Object.keys(catalogReferences).forEach(pkgName => {
-    if (catalogDependencies[pkgName]) {
-      referencedCatalogDeps[pkgName] = catalogDependencies[pkgName]
+    if (flattenedCatalogDeps[pkgName]) {
+      referencedCatalogDeps[pkgName] = flattenedCatalogDeps[pkgName]
     }
   })
 
@@ -90,11 +95,7 @@ export async function processCatalogs(
     if (catalogFilePath && options.upgrade) {
       try {
         const updatedContent = await upgradeCatalogData(catalogFilePath, referencedCatalogDeps, upgradedCatalogDeps)
-        if (catalogFilePath.endsWith('.yaml') || catalogFilePath.endsWith('.yml')) {
-          await fs.writeFile(catalogFilePath, stringify(JSON.parse(updatedContent)), 'utf-8')
-        } else {
-          await fs.writeFile(catalogFilePath, updatedContent, 'utf-8')
-        }
+        await fs.writeFile(catalogFilePath, updatedContent, 'utf-8')
       } catch (error) {
         console.error(`Error updating catalog file ${catalogFilePath}:`, error)
       }

@@ -30,15 +30,15 @@ const readPnpmWorkspaces = async (pkgPath: string): Promise<PnpmWorkspaces | nul
   return parse(pnpmWorkspaceFile) as PnpmWorkspaces
 }
 
-/** Gets catalog dependencies from both pnpm-workspace.yaml and package.json files. */
-const readCatalogDependencies = async (options: Options, pkgPath: string): Promise<Index<VersionSpec> | null> => {
-  const catalogDependencies: Index<VersionSpec> = {}
+/** Gets catalog dependencies from both pnpm-workspace.yaml and package.json files, separated by catalog name. */
+const readCatalogDependencies = async (options: Options, pkgPath: string): Promise<Index<Index<VersionSpec>> | null> => {
+  const catalogDependencies: Index<Index<VersionSpec>> = {}
 
   // Read from pnpm-workspace.yaml if the package manager is pnpm
   if (options.packageManager === 'pnpm') {
     const pnpmWorkspaces = await readPnpmWorkspaces(pkgPath)
     if (pnpmWorkspaces && !Array.isArray(pnpmWorkspaces) && pnpmWorkspaces.catalogs) {
-      Object.assign(catalogDependencies, ...Object.values(pnpmWorkspaces.catalogs))
+      Object.assign(catalogDependencies, pnpmWorkspaces.catalogs)
     }
   }
 
@@ -58,15 +58,29 @@ const readCatalogDependencies = async (options: Options, pkgPath: string): Promi
     throw error
   }
 
-  Object.assign(catalogDependencies, packageData.catalog, ...Object.values(packageData.catalogs ?? {}))
+  // Add default catalog if it exists
+  if (packageData.catalog) {
+    catalogDependencies.default = { ...catalogDependencies.default, ...packageData.catalog }
+  }
+  // Add named catalogs
+  if (packageData.catalogs) {
+    Object.entries(packageData.catalogs).forEach(([catalogName, catalogDeps]) => {
+      catalogDependencies[catalogName] = { ...catalogDependencies[catalogName], ...catalogDeps }
+    })
+  }
 
   // Workspaces catalogs (Bun format)
   if (packageData.workspaces && !Array.isArray(packageData.workspaces)) {
-    Object.assign(
-      catalogDependencies,
-      packageData.workspaces.catalog,
-      ...Object.values(packageData.workspaces.catalogs ?? {}),
-    )
+    // Add default catalog from workspaces if it exists
+    if (packageData.workspaces.catalog) {
+      catalogDependencies.default = { ...catalogDependencies.default, ...packageData.workspaces.catalog }
+    }
+    // Add named catalogs from workspaces
+    if (packageData.workspaces.catalogs) {
+      Object.entries(packageData.workspaces.catalogs).forEach(([catalogName, catalogDeps]) => {
+        catalogDependencies[catalogName] = { ...catalogDependencies[catalogName], ...catalogDeps }
+      })
+    }
   }
 
   return Object.keys(catalogDependencies).length > 0 ? catalogDependencies : null
@@ -168,11 +182,17 @@ async function getCatalogPackageInfo(options: Options, pkgPath: string): Promise
     return null
   }
 
+  // Flatten all catalog dependencies into a single object for backwards compatibility
+  const flattenedCatalogDependencies: Index<VersionSpec> = {}
+  Object.values(catalogDependencies).forEach(catalogDeps => {
+    Object.assign(flattenedCatalogDependencies, catalogDeps)
+  })
+
   // Create a synthetic package info for catalog dependencies
   const catalogPackageFile: PackageFile = {
     name: 'catalog-dependencies',
     version: '1.0.0',
-    dependencies: catalogDependencies,
+    dependencies: flattenedCatalogDependencies,
   }
 
   // Determine the correct file path for catalogs. For pnpm, use pnpm-workspace.yaml.
@@ -197,9 +217,9 @@ async function getCatalogPackageInfo(options: Options, pkgPath: string): Promise
  * Gets all local packages, including workspaces (depending on -w, -ws, and -root).
  *
  * @param options the application options, used to determine which packages to return.
- * @returns [PackageInfo[], string[], Index<VersionSpec> | null] an array of all package infos to be considered for updating, workspace names, and catalog dependencies if any
+ * @returns [PackageInfo[], string[], Index<Index<VersionSpec>> | null] an array of all package infos to be considered for updating, workspace names, and catalog dependencies if any
  */
-async function getAllPackages(options: Options): Promise<[PackageInfo[], string[], Index<VersionSpec> | null]> {
+async function getAllPackages(options: Options): Promise<[PackageInfo[], string[], Index<Index<VersionSpec>> | null]> {
   const defaultPackageFilename = options.packageFile || 'package.json'
   const cwd = options.cwd ? untildify(options.cwd) : './'
   const rootPackageFile = options.packageFile || (options.cwd ? path.join(cwd, 'package.json') : 'package.json')

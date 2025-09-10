@@ -26,7 +26,7 @@ async function stripDir(dirPath: string, paths: [string[], string[]]): Promise<[
 async function getAllPackagesForTest(testPath: string, options: Options): Promise<[string[], string[]]> {
   const testCwd = path.join(__dirname, testPath).replace(/\\/g, '/')
   const optionsWithTestCwd: Options = { cwd: testCwd, ...options }
-  const [pkgInfos, workspacePackageNames]: [PackageInfo[], string[], Index<VersionSpec> | null] =
+  const [pkgInfos, workspacePackageNames]: [PackageInfo[], string[], Index<Index<VersionSpec>> | null] =
     await getAllPackages(optionsWithTestCwd)
   const packagePaths: string[] = pkgInfos.map((packageInfo: PackageInfo) => packageInfo.filepath)
   const [pkgs, workspacePackages]: [string[], string[]] = await stripDir(testCwd, [packagePaths, workspacePackageNames])
@@ -35,7 +35,7 @@ async function getAllPackagesForTest(testPath: string, options: Options): Promis
 
 describe('getAllPackages', () => {
   it('returns default package without cwd', async () => {
-    const [pkgInfos, workspacePackageNames]: [PackageInfo[], string[], Index<VersionSpec> | null] =
+    const [pkgInfos, workspacePackageNames]: [PackageInfo[], string[], Index<Index<VersionSpec>> | null] =
       await getAllPackages({})
     const packagePaths: string[] = pkgInfos.map((packageInfo: PackageInfo) => packageInfo.filepath)
     packagePaths.should.deep.equal(['package.json'])

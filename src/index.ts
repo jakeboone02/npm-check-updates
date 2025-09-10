@@ -198,7 +198,7 @@ async function runUpgrades(options: Options, timeout?: NodeJS.Timeout): Promise<
   const [selectedPackageInfos, workspacePackages, catalogDependencies]: [
     PackageInfo[],
     string[],
-    Index<string> | null,
+    Index<Index<string>> | null,
   ] = await getAllPackages(options)
 
   const packageFilepaths: string[] = selectedPackageInfos.map((packageInfo: PackageInfo) => packageInfo.filepath)

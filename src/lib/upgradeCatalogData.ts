@@ -1,5 +1,6 @@
 import fs from 'fs/promises'
 import path from 'path'
+import { parseDocument } from 'yaml'
 import { Index } from '../types/IndexType'
 import { VersionSpec } from '../types/VersionSpec'
 
@@ -12,6 +13,7 @@ function escapeRegexp(s: string) {
 
 /**
  * Upgrade catalog dependencies in a YAML file (e.g., pnpm-workspace.yaml).
+ * Uses the yaml library to preserve comments, formatting, and structure.
  */
 async function upgradeYamlCatalogData(
   filePath: string,
@@ -19,22 +21,42 @@ async function upgradeYamlCatalogData(
   upgraded: Index<VersionSpec>,
 ): Promise<string> {
   const fileContent = await fs.readFile(filePath, 'utf-8')
+  const doc = parseDocument(fileContent)
 
-  // Use regex replacement to maintain original formatting
-  return Object.entries(upgraded)
+  // Update catalog dependencies while preserving document structure
+  Object.entries(upgraded)
     .filter(([dep]) => current[dep])
-    .reduce((content, [dep, newVersion]) => {
-      const currentVersion = current[dep]
+    .forEach(([dep, newVersion]) => {
+      // Check various possible paths for catalogs
+      const possiblePaths = [
+        ['catalogs', 'default', dep],
+        ['catalog', dep],
+        // Also check for named catalogs - we'll iterate through them
+      ]
 
-      // Match both quoted and unquoted versions
-      const quotedPattern = `(${escapeRegexp(dep)}\\s*:\\s*["'])(${escapeRegexp(currentVersion)})(["'])`
-      const unquotedPattern = `(${escapeRegexp(dep)}\\s*:\\s*)(${escapeRegexp(currentVersion)})(\\s*(?:\\n|$))`
+      // Handle named catalogs in catalogs section
+      const catalogsNode = doc.getIn(['catalogs'])
+      if (catalogsNode && typeof catalogsNode === 'object') {
+        // Find the catalog that contains this dependency
+        for (const [catalogName, catalogContent] of Object.entries(catalogsNode as any)) {
+          if (catalogContent && typeof catalogContent === 'object' && (catalogContent as any)[dep]) {
+            doc.setIn(['catalogs', catalogName, dep], newVersion)
+            return
+          }
+        }
+      }
 
-      const quotedRegex = new RegExp(quotedPattern, 'g')
-      const unquotedRegex = new RegExp(unquotedPattern, 'g')
+      // Try other possible paths
+      for (const pathSegments of possiblePaths) {
+        const value = doc.getIn(pathSegments)
+        if (value !== undefined) {
+          doc.setIn(pathSegments, newVersion)
+          break
+        }
+      }
+    })
 
-      return content.replace(quotedRegex, `$1${newVersion}$3`).replace(unquotedRegex, `$1${newVersion}$3`)
-    }, fileContent)
+  return doc.toString()
 }
 
 /**
