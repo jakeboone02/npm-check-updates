@@ -1,21 +1,18 @@
-import fs from 'fs/promises'
 import { ModificationOptions, applyEdits, findNodeAtLocation, modify, parseTree } from 'jsonc-parser'
-import path from 'path'
 import { parseDocument } from 'yaml'
 import { Index } from '../types/IndexType'
 import { VersionSpec } from '../types/VersionSpec'
 
 /**
- * Upgrade catalog dependencies in a YAML file (e.g., pnpm-workspace.yaml).
+ * Upgrade catalog dependencies in YAML content.
  * Uses the yaml library to preserve comments, formatting, and structure.
  */
-async function upgradeYamlCatalogData(
-  filePath: string,
+function upgradeYamlCatalogData(
+  fileContent: string,
   catalogName: string,
   current: Index<VersionSpec>,
   upgraded: Index<VersionSpec>,
-): Promise<string> {
-  const fileContent = await fs.readFile(filePath, 'utf-8')
+): string {
   const doc = parseDocument(fileContent)
 
   // Update catalog dependencies while preserving document structure
@@ -47,20 +44,20 @@ async function upgradeYamlCatalogData(
 const modificationOptions: ModificationOptions = { formattingOptions: { insertSpaces: true, tabSize: 2 } }
 
 /**
- * Upgrade catalog dependencies in a JSON file (e.g., package.json for Bun).
+ * Upgrade catalog dependencies in JSON content (e.g., package.json for Bun).
  */
-async function upgradeJsonCatalogData(
-  filePath: string,
+function upgradeJsonCatalogData(
+  fileContent: string,
   catalogName: string,
   current: Index<VersionSpec>,
   upgraded: Index<VersionSpec>,
-): Promise<string> {
-  const fileContent = await fs.readFile(filePath, 'utf-8')
-  const fileData = JSON.parse(fileContent)
+): string {
   const fileRoot = parseTree(fileContent)
-  const hasWorkspacesCatalog = fileData.workspaces && !Array.isArray(fileData.workspaces) && fileData.workspaces.catalog
+  const workspaceNode = findNodeAtLocation(fileRoot!, ['workspaces'])
   const hasWorkspacesCatalogs =
-    fileData.workspaces && !Array.isArray(fileData.workspaces) && fileData.workspaces.catalogs
+    workspaceNode &&
+    workspaceNode.type !== 'array' &&
+    (findNodeAtLocation(workspaceNode, ['catalog']) || findNodeAtLocation(workspaceNode, ['catalogs']))
 
   return Object.entries(upgraded).reduce((content, [dep, newVersion]) => {
     const currentVersion = current[dep]
@@ -77,10 +74,7 @@ async function upgradeJsonCatalogData(
       endResult = applyEdits(content, edits)
     }
 
-    if (
-      ((hasWorkspacesCatalog && catalogName === 'default') || (hasWorkspacesCatalogs && catalogName !== 'default')) &&
-      findNodeAtLocation(fileRoot!, ['workspaces', ...keyPath])
-    ) {
+    if (hasWorkspacesCatalogs && findNodeAtLocation(fileRoot!, ['workspaces', ...keyPath])) {
       const edits = modify(content, ['workspaces', ...keyPath], newVersion, modificationOptions)
       endResult = applyEdits(content, edits)
     }
@@ -90,29 +84,29 @@ async function upgradeJsonCatalogData(
 }
 
 /**
- * Upgrade catalog dependencies in either YAML or JSON catalog files.
+ * Upgrade catalog dependencies in either YAML or JSON catalog content.
  * Supports pnpm-workspace.yaml (pnpm) and package.json (Bun) catalog formats.
  *
- * @param filePath The path to the catalog file (pnpm-workspace.yaml or package.json)
+ * @param fileContent The content of the catalog file
+ * @param fileExtension The file extension (.yaml, .yml, or .json)
  * @param catalogName The name of the catalog to update ('default' for the main catalog)
  * @param current Current catalog dependencies {package: range}
  * @param upgraded New catalog dependencies {package: range}
  * @returns The updated file content as utf8 text
  */
-export async function upgradeCatalogData(
-  filePath: string,
+export function upgradeCatalogData(
+  fileContent: string,
+  fileExtension: string,
   catalogName: string,
   current: Index<VersionSpec>,
   upgraded: Index<VersionSpec>,
-): Promise<string> {
-  const fileExtension = path.extname(filePath)
-
+): string {
   if (fileExtension === '.yaml' || fileExtension === '.yml') {
-    return upgradeYamlCatalogData(filePath, catalogName, current, upgraded)
+    return upgradeYamlCatalogData(fileContent, catalogName, current, upgraded)
   } else if (fileExtension === '.json') {
-    return upgradeJsonCatalogData(filePath, catalogName, current, upgraded)
+    return upgradeJsonCatalogData(fileContent, catalogName, current, upgraded)
   } else {
-    throw new Error(`Unsupported catalog file type: ${filePath}`)
+    throw new Error(`Unsupported catalog file type: ${fileExtension}`)
   }
 }
 

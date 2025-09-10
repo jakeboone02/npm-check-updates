@@ -33,6 +33,10 @@ async function upgradePackageData(
   options: Options,
   pkgFile?: string,
 ) {
+  // Early return if no upgrades to apply
+  if (Object.keys(upgraded).length === 0) {
+    return pkgData
+  }
   // Check if this is a catalog file (pnpm-workspace.yaml or package.json with catalogs)
   if (pkgFile) {
     const fileName = path.basename(pkgFile)
@@ -47,7 +51,8 @@ async function upgradePackageData(
       if (actualFileExtension === '.json') {
         // Bun format: update package.json catalogs and return the updated content
         const catalogName = pkgFile.match(/#catalog:(.*)/)![1]
-        return upgradeCatalogData(actualFilePath, catalogName, current, upgraded)
+        const actualFileContent = await fs.readFile(actualFilePath, 'utf-8')
+        return upgradeCatalogData(actualFileContent, actualFileExtension, catalogName, current, upgraded)
       }
     }
 
@@ -107,7 +112,8 @@ async function upgradePackageData(
       }
 
       const catalogName = parsed.name.replace(/^catalog-/, '').replace(/-dependencies$/, '')
-      return upgradeCatalogData(pkgFile, catalogName, current, upgraded)
+      const yamlContent = await fs.readFile(pkgFile, 'utf-8')
+      return upgradeCatalogData(yamlContent, path.extname(pkgFile), catalogName, current, upgraded)
     }
 
     // Handle package.json catalog files (check if content contains catalog/catalogs at root level or in workspaces)
@@ -122,7 +128,8 @@ async function upgradePackageData(
       if (hasTopLevelCatalogs || hasWorkspacesCatalogs) {
         // For package.json catalogs, assume 'default' catalog if not specified
         const catalogName = 'default'
-        return upgradeCatalogData(pkgFile, catalogName, current, upgraded)
+        const fileContent = await fs.readFile(pkgFile, 'utf-8')
+        return upgradeCatalogData(fileContent, fileExtension, catalogName, current, upgraded)
       }
     }
   }

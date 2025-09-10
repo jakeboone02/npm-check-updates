@@ -1,11 +1,12 @@
 import findUp from 'find-up'
 import fs from 'fs/promises'
+import path from 'path'
 import { Index } from '../types/IndexType'
 import { Options } from '../types/Options'
 import { PackageInfo } from '../types/PackageInfo'
 import { VersionSpec } from '../types/VersionSpec'
 import { getCatalogDependencies } from './getCurrentDependencies'
-import { upgradeCatalogData } from './upgradeCatalogData'
+import upgradeCatalogData from './upgradeCatalogData'
 import upgradePackageDefinitions from './upgradePackageDefinitions'
 
 /**
@@ -103,25 +104,20 @@ export async function processCatalogs(
     // Update the catalog file if found
     if (catalogFilePath && options.upgrade) {
       try {
-        // Read the current file content once
-        let fileContent = await fs.readFile(catalogFilePath, 'utf-8')
+        const fileContent = await fs.readFile(catalogFilePath, 'utf-8')
 
-        // Apply updates for each catalog individually
-        for (const [catalogName, upgradedDeps] of Object.entries(upgradedCatalogDeps)) {
+        // Apply updates for each catalog sequentially in memory
+        const fileExtension = path.extname(catalogFilePath)
+        const newFileContent = Object.entries(upgradedCatalogDeps).reduce((content, [catalogName, upgradedDeps]) => {
           const currentCatalogDeps = catalogDependencies[`catalog:${catalogName}`] || {}
           if (Object.keys(upgradedDeps).length > 0) {
-            // Convert empty catalog name to 'default' for upgradeCatalogData
-            const catalogNameForUpgrade = catalogName === '' ? 'default' : catalogName
-            fileContent = await upgradeCatalogData(
-              catalogFilePath,
-              catalogNameForUpgrade,
-              currentCatalogDeps,
-              upgradedDeps,
-            )
-            // Write the updated content back for the next catalog update
-            await fs.writeFile(catalogFilePath, fileContent, 'utf-8')
+            return upgradeCatalogData(content, fileExtension, catalogName, currentCatalogDeps, upgradedDeps)
           }
-        }
+          return content
+        }, fileContent)
+
+        // Write the final accumulated changes once
+        await fs.writeFile(catalogFilePath, newFileContent, 'utf-8')
       } catch (error) {
         console.error(`Error updating catalog file ${catalogFilePath}:`, error)
       }
