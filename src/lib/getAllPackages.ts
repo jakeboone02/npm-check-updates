@@ -207,7 +207,7 @@ async function getCatalogPackageInfos(options: Options, pkgPath: string): Promis
           `${pkgPath}#catalog:${catalogPackageFile.name}`,
     pkg: catalogPackageFile,
     pkgFile: JSON.stringify(catalogPackageFile),
-    name: 'catalogs',
+    name: catalogPackageFile.name,
   }))
 
   return catalogPackageInfos
@@ -224,8 +224,7 @@ async function getAllPackages(options: Options): Promise<[PackageInfo[], string[
   const cwd = options.cwd ? untildify(options.cwd) : './'
   const rootPackageFile = options.packageFile || (options.cwd ? path.join(cwd, 'package.json') : 'package.json')
 
-  const useWorkspaces: boolean =
-    options.workspaces === true || (options.workspace !== undefined && options.workspace.length !== 0)
+  const useWorkspaces: boolean = options.workspaces === true || options.workspace?.length !== 0
 
   let packageInfos: PackageInfo[] = []
 

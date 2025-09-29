@@ -236,16 +236,16 @@ async function runUpgrades(options: Options, timeout?: NodeJS.Timeout): Promise<
         let pkgData: string | null
         let pkgFile: string
 
-        const match = packageInfo.pkg.name?.match(syntheticPackageNameRegExp)
+        const syntheticPackageNameMatch = packageInfo.pkg.name?.match(syntheticPackageNameRegExp)
 
-        if (match) {
+        if (syntheticPackageNameMatch) {
           // Virtual catalog file or catalog package - use PackageInfo data
           pkgData = packageInfo.pkgFile
           pkgFile = packageInfo.filepath
 
           // Print the same message as findPackage for consistency
           const fileName = path.basename(packageInfo.filepath.replace(/#catalog:.*$/, ''))
-          const catalogName = match[1]
+          const catalogName = syntheticPackageNameMatch[1]
 
           print(pkgOptions, `${pkgOptions.upgrade ? 'Upgrading' : 'Checking'} catalog:${catalogName} in ${fileName}`)
         } else {
@@ -254,15 +254,54 @@ async function runUpgrades(options: Options, timeout?: NodeJS.Timeout): Promise<
           pkgData = result.pkgData
           pkgFile = result.pkgFile || packageInfo.filepath
         }
-        return {
-          ...packages,
-          // index by relative path if cwd was specified
-          [pkgOptions.cwd
+        const cleanKey = (
+          pkgOptions.cwd
             ? path
                 .relative(path.resolve(pkgOptions.cwd), pkgFile)
                 // convert Windows path to *nix path for consistency
                 .replace(/\\/g, '/')
-            : pkgFile]: await runLocal(pkgOptions, pkgData, pkgFile),
+            : pkgFile
+        )
+          // remove catalog suffix for clean JSON keys
+          .replace(/#catalog:.*$/, '')
+
+        const result = await runLocal(pkgOptions, pkgData, pkgFile)
+
+        // Handle virtual catalog packages by merging their updates into the catalog reference file
+        if (syntheticPackageNameMatch) {
+          // catalogName format is like "catalog--dependencies" or "catalog-dev-dependencies-dependencies"
+          // Extract the actual catalog name from the pattern "catalog-{name}-dependencies"
+          const catalogName = syntheticPackageNameMatch[1]
+          const existingPackage = (packages as Index<PackageFile>)[cleanKey] || ({} as PackageFile)
+
+          // Merge catalog updates into the existing package data
+          const updatedPackage: PackageFile = { ...existingPackage }
+
+          // Extract catalog updates from the virtual package result
+          const dependencies = (result as PackageFile).dependencies || {}
+          if (catalogName === '') {
+            // Default catalog (empty name) - replace with updated versions
+            updatedPackage.catalog = { ...updatedPackage.catalog, ...dependencies }
+          } else {
+            // Named catalog - replace with updated versions
+            updatedPackage.catalogs = {
+              ...updatedPackage.catalogs,
+              [catalogName]: {
+                ...(updatedPackage.catalogs || {})[catalogName],
+                ...dependencies,
+              },
+            }
+          }
+
+          return {
+            ...packages,
+            [cleanKey]: updatedPackage,
+          }
+        }
+
+        return {
+          ...packages,
+          [cleanKey]: result,
         }
       },
       Promise.resolve({} as Index<PackageFile> | PackageFile),
@@ -281,10 +320,11 @@ async function runUpgrades(options: Options, timeout?: NodeJS.Timeout): Promise<
     const { pkgData, pkgFile } = await findPackage(options)
     analysis = await runLocal(options, pkgData, pkgFile)
   }
-  clearTimeout(timeout)
 
   // Process catalog dependencies if any
   await processCatalogs(options, selectedPackageInfos, catalogDependencies)
+
+  clearTimeout(timeout)
 
   if (options.errorLevel === 2 && someUpgraded(packageFilepaths, analysis)) {
     programError(options, '\nDependencies not up-to-date')

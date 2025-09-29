@@ -522,9 +522,10 @@ describe('workspaces', () => {
           const pnpmWorkspaceData = `packages:
   - 'packages/**'
 
+catalog:
+  ncu-test-v2: '1.0.0'
+
 catalogs:
-  default:
-    ncu-test-v2: '1.0.0'
   test:
     ncu-test-tag: '1.0.0'
 `
@@ -538,11 +539,13 @@ catalogs:
           await fs.mkdir(path.join(tempDir, 'packages/a'), { recursive: true })
           await fs.writeFile(
             path.join(tempDir, 'packages/a/package.json'),
-            JSON.stringify({
-              dependencies: {
-                'ncu-test-tag': 'catalog:test',
-              },
-            }),
+            JSON.stringify({ dependencies: { 'ncu-test-tag': 'catalog:test' } }),
+            'utf-8',
+          )
+          await fs.mkdir(path.join(tempDir, 'packages/b'), { recursive: true })
+          await fs.writeFile(
+            path.join(tempDir, 'packages/b/package.json'),
+            JSON.stringify({ dependencies: { 'ncu-test-v2': 'catalog:' } }),
             'utf-8',
           )
 
@@ -568,6 +571,7 @@ catalogs:
             },
             'package.json': { dependencies: { 'ncu-test-v2': '2.0.0' } },
             'packages/a/package.json': { dependencies: { 'ncu-test-tag': 'catalog:test' } },
+            'packages/b/package.json': { dependencies: { 'ncu-test-v2': 'catalog:' } },
           })
         } finally {
           await fs.rm(tempDir, { recursive: true, force: true })
@@ -595,11 +599,17 @@ catalogs:
           await fs.writeFile(path.join(tempDir, 'package.json'), pkgDataRoot, 'utf-8')
           await fs.writeFile(path.join(tempDir, 'bun.lock'), '{}', 'utf-8')
 
-          // create workspace package
+          // create workspace packages
           await fs.mkdir(path.join(tempDir, 'packages/a'), { recursive: true })
           await fs.writeFile(
             path.join(tempDir, 'packages/a/package.json'),
             JSON.stringify({ dependencies: { 'ncu-test-tag': 'catalog:test' } }),
+            'utf-8',
+          )
+          await fs.mkdir(path.join(tempDir, 'packages/b'), { recursive: true })
+          await fs.writeFile(
+            path.join(tempDir, 'packages/b/package.json'),
+            JSON.stringify({ dependencies: { 'ncu-test-v2': 'catalog:' } }),
             'utf-8',
           )
 
@@ -624,6 +634,7 @@ catalogs:
               catalogs: { test: { 'ncu-test-tag': '1.1.0' } },
             },
             'packages/a/package.json': { dependencies: { 'ncu-test-tag': 'catalog:test' } },
+            'packages/b/package.json': { dependencies: { 'ncu-test-v2': 'catalog:' } },
           })
         } finally {
           await fs.rm(tempDir, { recursive: true, force: true })
@@ -651,15 +662,17 @@ catalogs:
           await fs.writeFile(path.join(tempDir, 'package.json'), pkgDataRoot, 'utf-8')
           await fs.writeFile(path.join(tempDir, 'bun.lock'), '{}', 'utf-8')
 
-          // create workspace package
+          // create workspace packages
           await fs.mkdir(path.join(tempDir, 'packages/a'), { recursive: true })
           await fs.writeFile(
             path.join(tempDir, 'packages/a/package.json'),
-            JSON.stringify({
-              dependencies: {
-                'ncu-test-tag': 'catalog:test',
-              },
-            }),
+            JSON.stringify({ dependencies: { 'ncu-test-tag': 'catalog:test' } }),
+            'utf-8',
+          )
+          await fs.mkdir(path.join(tempDir, 'packages/b'), { recursive: true })
+          await fs.writeFile(
+            path.join(tempDir, 'packages/b/package.json'),
+            JSON.stringify({ dependencies: { 'ncu-test-v2': 'catalog:' } }),
             'utf-8',
           )
 
@@ -686,6 +699,7 @@ catalogs:
               },
             },
             'packages/a/package.json': { dependencies: { 'ncu-test-tag': 'catalog:test' } },
+            'packages/b/package.json': { dependencies: { 'ncu-test-v2': 'catalog:' } },
           })
         } finally {
           await fs.rm(tempDir, { recursive: true, force: true })

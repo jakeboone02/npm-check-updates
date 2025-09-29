@@ -1,6 +1,10 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "definitions": {
+    "Index<Index<string>>": {
+      "description": "A very generic object.",
+      "type": "object"
+    },
     "Index<string>": {
       "description": "A very generic object.",
       "type": "object"
@@ -21,6 +25,14 @@
     "PackageFile": {
       "description": "The relevant bits of a parsed package.json file.",
       "properties": {
+        "catalog": {
+          "$ref": "#/definitions/Index<string>",
+          "description": "A very generic object."
+        },
+        "catalogs": {
+          "$ref": "#/definitions/Index<Index<string>>",
+          "description": "A very generic object."
+        },
         "dependencies": {
           "$ref": "#/definitions/Index<string>",
           "description": "A very generic object."
@@ -81,6 +93,14 @@
             },
             {
               "properties": {
+                "catalog": {
+                  "$ref": "#/definitions/Index<string>",
+                  "description": "A very generic object."
+                },
+                "catalogs": {
+                  "$ref": "#/definitions/Index<Index<string>>",
+                  "description": "A very generic object."
+                },
                 "packages": {
                   "items": {
                     "type": "string"

@@ -65,7 +65,7 @@ function upgradeJsonCatalogData(
       return content
     }
 
-    const keyPath = catalogName === 'default' ? ['catalog', dep] : ['catalogs', catalogName, dep]
+    const keyPath = catalogName ? ['catalogs', catalogName, dep] : ['catalog', dep]
 
     let endResult = content
 

@@ -1,7 +1,7 @@
 import fs from 'fs/promises'
 import path from 'path'
-import { parse } from 'yaml'
 import { Index } from '../types/IndexType'
+import { Maybe } from '../types/Maybe'
 import { Options } from '../types/Options'
 import { PackageFile } from '../types/PackageFile'
 import { VersionSpec } from '../types/VersionSpec'
@@ -31,12 +31,12 @@ async function upgradePackageData(
   current: Index<VersionSpec>,
   upgraded: Index<VersionSpec>,
   options: Options,
-  pkgFile?: string,
+  pkgFile?: Maybe<string>,
 ) {
-  // Early return if no upgrades to apply
-  if (Object.keys(upgraded).length === 0) {
-    return pkgData
-  }
+  // // Early return if no upgrades to apply
+  // if (Object.keys(upgraded).length === 0) {
+  //   return pkgData
+  // }
   // Check if this is a catalog file (pnpm-workspace.yaml or package.json with catalogs)
   if (pkgFile) {
     const fileName = path.basename(pkgFile)
@@ -50,9 +50,9 @@ async function upgradePackageData(
 
       if (actualFileExtension === '.json') {
         // Bun format: update package.json catalogs and return the updated content
-        const catalogName = pkgFile.match(/#catalog:(.*)/)![1]
-        const actualFileContent = await fs.readFile(actualFilePath, 'utf-8')
-        return upgradeCatalogData(actualFileContent, actualFileExtension, catalogName, current, upgraded)
+        const catalogName = pkgFile.match(/#catalog:catalog-(.*)-dependencies/)![1] || ''
+        // const actualFileContent = await fs.readFile(actualFilePath, 'utf-8')
+        return upgradeCatalogData(pkgData, actualFileExtension, catalogName, current, upgraded)
       }
     }
 
@@ -61,57 +61,57 @@ async function upgradePackageData(
       // Check if we have synthetic catalog data (JSON with only dependencies and name/version)
       // In this case, we should generate the proper catalog structure
       const parsed = JSON.parse(pkgData)
-      if (
-        typeof parsed === 'object' &&
-        /^catalog-.*-dependencies$/.test(parsed.name) &&
-        typeof parsed.dependencies === 'object' &&
-        Object.keys(parsed).length <= 3
-      ) {
-        // This is synthetic catalog data, we need to generate the proper catalog structure
-        // Read the original pnpm-workspace.yaml to get the catalog structure
-        const yamlContent = await fs.readFile(pkgFile, 'utf-8')
-        const yamlData = parse(yamlContent) as {
-          packages?: string[]
-          catalog?: Index<string>
-          catalogs?: Index<Index<string>>
-        }
+      // if (
+      //   typeof parsed === 'object' &&
+      //   /^catalog-.*-dependencies$/.test(parsed.name) &&
+      //   typeof parsed.dependencies === 'object' &&
+      //   Object.keys(parsed).length <= 3
+      // ) {
+      //   // This is synthetic catalog data, we need to generate the proper catalog structure
+      //   // Read the original pnpm-workspace.yaml to get the catalog structure
+      //   const yamlContent = await fs.readFile(pkgFile, 'utf-8')
+      //   const yamlData = parse(yamlContent) as {
+      //     packages?: string[]
+      //     catalog?: Index<string>
+      //     catalogs?: Index<Index<string>>
+      //   }
 
-        // Update catalog dependencies with upgraded versions
-        if (yamlData.catalogs) {
-          yamlData.catalogs = Object.entries(yamlData.catalogs).reduce(
-            (catalogs, [catalogName, catalog]) => ({
-              ...catalogs,
-              [catalogName]: {
-                ...catalog,
-                ...Object.entries(upgraded)
-                  .filter(([dep]) => catalog[dep])
-                  .reduce((acc, [dep, version]) => ({ ...acc, [dep]: version }), {}),
-              },
-            }),
-            {} as typeof yamlData.catalogs,
-          )
-        }
+      //   // Update catalog dependencies with upgraded versions
+      //   if (yamlData.catalogs) {
+      //     yamlData.catalogs = Object.entries(yamlData.catalogs).reduce(
+      //       (catalogs, [catalogName, catalog]) => ({
+      //         ...catalogs,
+      //         [catalogName]: {
+      //           ...catalog,
+      //           ...Object.entries(upgraded)
+      //             .filter(([dep]) => catalog[dep])
+      //             .reduce((acc, [dep, version]) => ({ ...acc, [dep]: version }), {}),
+      //         },
+      //       }),
+      //       {} as typeof yamlData.catalogs,
+      //     )
+      //   }
 
-        // Also handle single catalog (if present)
-        if (yamlData.catalog) {
-          const catalog = yamlData.catalog
-          yamlData.catalog = {
-            ...catalog,
-            ...Object.entries(upgraded)
-              .filter(([dep]) => catalog[dep])
-              .reduce((acc, [dep, version]) => ({ ...acc, [dep]: version }), {}),
-          }
-        }
+      //   // Also handle single catalog (if present)
+      //   if (yamlData.catalog) {
+      //     const catalog = yamlData.catalog
+      //     yamlData.catalog = {
+      //       ...catalog,
+      //       ...Object.entries(upgraded)
+      //         .filter(([dep]) => catalog[dep])
+      //         .reduce((acc, [dep, version]) => ({ ...acc, [dep]: version }), {}),
+      //     }
+      //   }
 
-        // For pnpm, also expose the 'default' catalog as a top-level 'catalog' property
-        if (yamlData.catalogs?.default) {
-          yamlData.catalog = yamlData.catalogs.default
-        }
+      //   // // For pnpm, also expose the 'default' catalog as a top-level 'catalog' property
+      //   // if (yamlData.catalogs?.default) {
+      //   //   yamlData.catalog = yamlData.catalogs.default
+      //   // }
 
-        return JSON.stringify(yamlData, null, 2)
-      }
+      //   return JSON.stringify(yamlData, null, 2)
+      // }
 
-      const catalogName = parsed.name.replace(/^catalog-/, '').replace(/-dependencies$/, '')
+      const catalogName = parsed.name.replace(/(^catalog-|-dependencies$)/g, '')
       const yamlContent = await fs.readFile(pkgFile, 'utf-8')
       return upgradeCatalogData(yamlContent, path.extname(pkgFile), catalogName, current, upgraded)
     }

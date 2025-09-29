@@ -21,6 +21,15 @@ export interface PackageFile {
   peerDependencies?: Index<VersionSpec>
   repository?: string | PackageFileRepository
   scripts?: Index<string>
-  workspaces?: string[] | { packages: string[] }
+  workspaces?:
+    | string[]
+    | {
+        packages: string[]
+        // bun only
+        catalog?: Index<VersionSpec>
+        catalogs?: Index<Index<VersionSpec>>
+      }
+  catalog?: Index<VersionSpec>
+  catalogs?: Index<Index<VersionSpec>>
   version?: string
 }

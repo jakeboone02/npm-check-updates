@@ -292,7 +292,7 @@ export default async function runLocal(
     }
   }
 
-  const newPkgData = await upgradePackageData(pkgData, current, chosenUpgraded, options, pkgFile || undefined)
+  const newPkgData = await upgradePackageData(pkgData, current, chosenUpgraded, options, pkgFile)
 
   const output: PackageFile | Index<VersionSpec> = options.jsonAll
     ? (parseJson(newPkgData) as PackageFile)
@@ -300,12 +300,12 @@ export default async function runLocal(
       ? pick(parseJson(newPkgData) as PackageFile, resolveDepSections(options.dep))
       : chosenUpgraded
 
-  // will be overwritten with the result of fs.writeFile so that the return promise waits for the package file to be written
-  let writePromise
-
   if (options.json && !options.deep) {
     printJson(options, output)
   }
+
+  // will be overwritten with the result of fs.writeFile so that the return promise waits for the package file to be written
+  let writePromise
 
   if (Object.keys(filteredUpgraded).length > 0) {
     // if there is a package file, write the new package data
