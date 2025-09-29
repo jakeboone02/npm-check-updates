@@ -27,7 +27,7 @@ import { SpawnPleaseOptions } from '../types/SpawnPleaseOptions'
 import { Version } from '../types/Version'
 import { VersionResult } from '../types/VersionResult'
 import { VersionSpec } from '../types/VersionSpec'
-import { filterPredicate, satisfiesNodeEngine } from './filters'
+import { filterPredicate, satisfiesCooldownPeriod, satisfiesNodeEngine } from './filters'
 
 const EXPLICIT_RANGE_OPS = new Set(['-', '||', '&&', '<', '<=', '>', '>='])
 
@@ -119,6 +119,26 @@ const fetchPartialPackument = async (
 
     // possible that corgis are not supported by this registry
     return fetchPartialPackument(name, fields, tag, { ...opts, fullMetadata: true }, version)
+  }
+}
+
+/**
+ * Decorates a tag-specific/version-specific packument object with the `time` property from the full packument,
+ * if the `time` information for the tag's version exists.
+ *
+ * @param tagPackument - A partial packument object representing a specific tag/version.
+ * @param packument - The full packument object, potentially containing time metadata for versions.
+ * @returns A new packument object that includes the `time` property if available for the tag's version.
+ */
+const decorateTagPackumentWithTime = (
+  tagPackument: Partial<Packument>,
+  packument: Partial<Packument>,
+): Partial<Packument> => {
+  const version = tagPackument.version
+
+  return {
+    ...tagPackument,
+    ...(packument?.time?.[version!] ? { time: packument.time } : null),
   }
 }
 
@@ -659,15 +679,31 @@ export const greatest: GetVersion = async (
   npmConfig?: NpmConfig,
   npmConfigProject?: NpmConfig,
 ): Promise<VersionResult> => {
+  const fields: (keyof Packument)[] = ['versions']
+
+  if (options.cooldown) {
+    fields.push('time')
+  }
+
+  const packument = await fetchUpgradedPackumentMemo(
+    packageName,
+    fields,
+    currentVersion,
+    options,
+    0,
+    npmConfig,
+    npmConfigProject,
+  )
+
   // known type based on 'versions'
-  const versions = (
-    await fetchUpgradedPackumentMemo(packageName, ['versions'], currentVersion, options, 0, npmConfig, npmConfigProject)
-  )?.versions
+  const versions = packument?.versions
 
   return {
     version:
       Object.values(versions || {})
-        .filter(filterPredicate(options))
+        .filter(tagPackument =>
+          filterPredicate(options)(decorateTagPackumentWithTime(tagPackument, packument as Partial<Packument>)),
+        )
         .map(o => o.version)
         .sort(versionUtil.compareVersions)
         .at(-1) || null,
@@ -769,9 +805,15 @@ export const distTag: GetVersion = async (
   npmConfig?: NpmConfig,
   npmConfigProject?: NpmConfig,
 ) => {
+  const fields: (keyof Packument)[] = ['dist-tags']
+
+  if (options.cooldown) {
+    fields.push('time')
+  }
+
   const packument = await fetchUpgradedPackumentMemo(
     packageName,
-    ['dist-tags'],
+    fields,
     currentVersion,
     options,
     0,
@@ -788,15 +830,23 @@ export const distTag: GetVersion = async (
         version,
       }
 
+  const tagPackumentWithTime = decorateTagPackumentWithTime(tagPackument, packument as Partial<Packument>)
+
   // latest should not be deprecated
   // if latest exists and latest is not a prerelease version, return it
   // if latest exists and latest is a prerelease version and --pre is specified, return it
   // if latest exists and latest not satisfies min version of engines.node
-  if (tagPackument && filterPredicate(options)(tagPackument)) {
+  // if latest exists and cooldown is specified and latest is within cooldown period, return it
+  if (tagPackument && filterPredicate(options)(tagPackumentWithTime)) {
     return {
       version: tagPackument.version,
       ...(packument?.time?.[version!] ? { time: packument.time[version!] } : null),
     }
+  }
+
+  // if version from dist-tag does not meet cooldown requirement skip finding other versions
+  if (options.cooldown) {
+    return {}
   }
 
   // If we use a custom dist-tag, we do not want to get other 'pre' versions, just the ones from this dist-tag
@@ -868,6 +918,17 @@ export const newest: GetVersion = async (
   // sort by timestamp (entry[1]) and map versions
   const versionsSortedByTime = sortBy(Object.entries(timesSatisfyingNodeEngine), v => v[1]).map(([version]) => version)
 
+  if (options.cooldown) {
+    const versionsSatisfiesfyingCooldownPeriod = versionsSortedByTime.filter(version =>
+      satisfiesCooldownPeriod(
+        decorateTagPackumentWithTime((result as Packument).versions[version], result as Packument),
+        options.cooldown,
+      ),
+    )
+
+    return { version: versionsSatisfiesfyingCooldownPeriod.at(-1) }
+  }
+
   return { version: versionsSortedByTime.at(-1) }
 }
 
@@ -886,12 +947,28 @@ export const minor: GetVersion = async (
   npmConfig?: NpmConfig,
   npmConfigProject?: NpmConfig,
 ): Promise<VersionResult> => {
-  const versions = (
-    await fetchUpgradedPackumentMemo(packageName, ['versions'], currentVersion, options, 0, npmConfig, npmConfigProject)
-  )?.versions as Index<Packument>
+  const fields: (keyof Packument)[] = ['versions']
+
+  if (options.cooldown) {
+    fields.push('time')
+  }
+
+  const packument = await fetchUpgradedPackumentMemo(
+    packageName,
+    fields,
+    currentVersion,
+    options,
+    0,
+    npmConfig,
+    npmConfigProject,
+  )
+
+  const versions = packument?.versions as Index<Packument>
   const version = versionUtil.findGreatestByLevel(
     Object.values(versions || {})
-      .filter(filterPredicate(options))
+      .filter(tagPackument =>
+        filterPredicate(options)(decorateTagPackumentWithTime(tagPackument, packument as Partial<Packument>)),
+      )
       .map(o => o.version),
     currentVersion,
     'minor',
@@ -914,12 +991,28 @@ export const patch: GetVersion = async (
   npmConfig?: NpmConfig,
   npmConfigProject?: NpmConfig,
 ): Promise<VersionResult> => {
-  const versions = (
-    await fetchUpgradedPackumentMemo(packageName, ['versions'], currentVersion, options, 0, npmConfig, npmConfigProject)
-  )?.versions as Index<Packument>
+  const fields: (keyof Packument)[] = ['versions']
+
+  if (options.cooldown) {
+    fields.push('time')
+  }
+
+  const packument = await fetchUpgradedPackumentMemo(
+    packageName,
+    fields,
+    currentVersion,
+    options,
+    0,
+    npmConfig,
+    npmConfigProject,
+  )
+
+  const versions = packument?.versions as Index<Packument>
   const version = versionUtil.findGreatestByLevel(
     Object.values(versions || {})
-      .filter(filterPredicate(options))
+      .filter(tagPackument =>
+        filterPredicate(options)(decorateTagPackumentWithTime(tagPackument, packument as Partial<Packument>)),
+      )
       .map(o => o.version),
     currentVersion,
     'patch',
@@ -942,14 +1035,30 @@ export const semver: GetVersion = async (
   npmConfig?: NpmConfig,
   npmConfigProject?: NpmConfig,
 ): Promise<VersionResult> => {
-  const versions = (
-    await fetchUpgradedPackumentMemo(packageName, ['versions'], currentVersion, options, 0, npmConfig, npmConfigProject)
-  )?.versions as Index<Packument>
+  const fields: (keyof Packument)[] = ['versions']
+
+  if (options.cooldown) {
+    fields.push('time')
+  }
+
+  const packument = await fetchUpgradedPackumentMemo(
+    packageName,
+    fields,
+    currentVersion,
+    options,
+    0,
+    npmConfig,
+    npmConfigProject,
+  )
+
+  const versions = packument?.versions as Index<Packument>
   // ignore explicit version ranges
   if (isExplicitRange(currentVersion)) return { version: null }
 
   const versionsFiltered = Object.values(versions || {})
-    .filter(filterPredicate(options))
+    .filter(tagPackument =>
+      filterPredicate(options)(decorateTagPackumentWithTime(tagPackument, packument as Partial<Packument>)),
+    )
     .map(o => o.version)
   // TODO: Upgrading within a prerelease does not seem to work.
   // { includePrerelease: true } does not help.

@@ -40,6 +40,9 @@ export interface RunOptions {
   /** Directory of .ncurc config file. (default: directory of `packageFile`) */
   configFilePath?: string
 
+  /** Sets a minimum age (in days) for package versions to be considered for upgrade, reducing the risk of installing newly published, potentially compromised packages. Run "ncu --help --cooldown" for details. */
+  cooldown?: number
+
   /** Working directory in which npm will be executed. */
   cwd?: string
 
@@ -52,7 +55,7 @@ export interface RunOptions {
    */
   dep?: string | readonly string[]
 
-  /** Include deprecated packages. Use `--no-deprecated` to exclude deprecated packages (uses more bandwidth).
+  /** Include deprecated packages. Use `--no-deprecated` to exclude deprecated packages (20–25% slower).
    *
    * @default true
    */
@@ -187,9 +190,9 @@ export interface RunOptions {
   /** Log additional information for debugging. Alias for `--loglevel` verbose. */
   verbose?: boolean
 
-  /** Run on one or more specified workspaces. Add `--root` to also upgrade the root project. */
+  /** Run on one or more specified workspaces. Add `--no-root` to exclude the root project. */
   workspace?: readonly string[]
 
-  /** Run on all workspaces. Add `--root` to also upgrade the root project. */
+  /** Run on all workspaces. Add `--no-root` to exclude the root project. */
   workspaces?: boolean
 }

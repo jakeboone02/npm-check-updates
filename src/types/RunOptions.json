@@ -138,6 +138,9 @@
         "global": {
           "type": "boolean"
         },
+        "hasIndices": {
+          "type": "boolean"
+        },
         "ignoreCase": {
           "type": "boolean"
         },
@@ -197,6 +200,10 @@
       "description": "Directory of .ncurc config file. (default: directory of `packageFile`)",
       "type": "string"
     },
+    "cooldown": {
+      "description": "Sets a minimum age (in days) for package versions to be considered for upgrade, reducing the risk of installing newly published, potentially compromised packages. Run \"ncu --help --cooldown\" for details.",
+      "type": "number"
+    },
     "cwd": {
       "description": "Working directory in which npm will be executed.",
       "type": "string"
@@ -222,7 +229,7 @@
     },
     "deprecated": {
       "default": true,
-      "description": "Include deprecated packages. Use `--no-deprecated` to exclude deprecated packages (uses more bandwidth).",
+      "description": "Include deprecated packages. Use `--no-deprecated` to exclude deprecated packages (20–25% slower).",
       "type": "boolean"
     },
     "doctor": {
@@ -505,14 +512,14 @@
       "type": "boolean"
     },
     "workspace": {
-      "description": "Run on one or more specified workspaces. Add `--root` to also upgrade the root project.",
+      "description": "Run on one or more specified workspaces. Add `--no-root` to exclude the root project.",
       "items": {
         "type": "string"
       },
       "type": "array"
     },
     "workspaces": {
-      "description": "Run on all workspaces. Add `--root` to also upgrade the root project.",
+      "description": "Run on all workspaces. Add `--no-root` to exclude the root project.",
       "type": "boolean"
     }
   },

@@ -1,6 +1,6 @@
 import { dequal } from 'dequal'
 import propertyOf from 'lodash/propertyOf'
-import cliOptions, { cliOptionsMap } from '../cli-options'
+import cliOptions from '../cli-options'
 import { print } from '../lib/logging'
 import packageManagers from '../package-managers'
 import { FilterPattern } from '../types/FilterPattern'
@@ -183,6 +183,10 @@ async function initOptions(runOptions: RunOptions, { cli }: { cli?: boolean } = 
     programError(options, `--registry must be a valid URL. Invalid value: "${options.registry}"`)
   }
 
+  if (options.cooldown != null && (isNaN(options.cooldown) || options.cooldown < 0)) {
+    programError(options, 'Cooldown must be a non-negative integer representing days since published')
+  }
+
   const target: Target = options.target || 'latest'
 
   const autoPre = target === 'newest' || target === 'greatest'
@@ -192,7 +196,7 @@ async function initOptions(runOptions: RunOptions, { cli }: { cli?: boolean } = 
   const resolvedOptions: Options = {
     ...options,
     ...(options.deep ? { packageFile: '**/package.json' } : null),
-    ...(packageManager === 'deno' && options.dep !== cliOptionsMap.dep.default ? { dep: ['imports'] } : null),
+    ...(packageManager === 'deno' ? { dep: ['imports'] } : null),
     ...(options.format && options.format.length > 0 ? { format: options.format } : null),
     filter: args || filter,
     filterVersion,
